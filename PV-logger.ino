@@ -18,6 +18,11 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
+/*
+Credits
+Davide Rosa (http://www.drhack.it/arduino/32-lettura-inverte-power-one-aurora.html)
+*/
+
 #include <Thread.h>
 #include <ThreadController.h>
 #include <ESP8266.h>
