@@ -131,7 +131,7 @@ private:
 #ifdef DBG_PV_INVERTER_COMMUNICATION
 	  Serial.println("[PV] Sending message ...");
 	  for(int j = 0; j < 9; j++)
-		Serial.print("[PV] TX message [" + String(j) + "] = " + String(SendData[j]));
+		Serial.println("[PV] TX message [" + String(j) + "] = " + String(SendData[j]));
 #endif
       if (Serial1.write(SendData, sizeof(SendData)) != 0) {
         Serial1.flush();
@@ -144,7 +144,7 @@ private:
 #ifdef DBG_PV_INVERTER_COMMUNICATION
           Serial.println("[PV] RX message length = " + String(received_bytes_num));
           for(int j = 0; j < 8; j++)
-            Serial.print("[PV] RX message [" + String(j) + "] = " + String(ReceiveData[j]));
+            Serial.println("[PV] RX message [" + String(j) + "] = " + String(ReceiveData[j]));
 #endif
           if ((int)word(ReceiveData[7], ReceiveData[6]) == Crc16(ReceiveData, 0, 6)) {
 #ifdef DBG_PV_INVERTER_COMMUNICATION
