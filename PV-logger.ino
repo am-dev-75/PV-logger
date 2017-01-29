@@ -18,31 +18,27 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-/*
-Credits
-Davide Rosa (http://www.drhack.it/arduino/32-lettura-inverte-power-one-aurora.html)
-*/
-
 #include <Thread.h>
 #include <ThreadController.h>
 #include <ESP8266.h>
 #include <dht.h>
 #include <avr/wdt.h>
 
-#define SW_VERSION "0.5.0"
+#define SW_VERSION "0.6.0"
 
 // Enable/disable functionalities
 //#define DISABLE_HEARTBEAT
 //#define DISABLE_DATA_SAMPLER
 //#define DISABLE_WDT
 //#define DISABLE_DATA_SAMPLER_TEMP_HUM
+//#define DISABLE_DATA_SAMPLER_PV_INVERTER
 //#define DISABLE_PV_INVERTER_PROBING
 
 // Debug options
 #undef DGB_SERIAL1
 //#define DBG_ESP8266
 #undef DBG_ESP8266
-//#define DBG_PV_INVERTER_COMMUNICATION
+#define DBG_PV_INVERTER_COMMUNICATION
 
 #define SER_DEBUG_BAUD_RATE         115200
 
@@ -66,6 +62,9 @@ Davide Rosa (http://www.drhack.it/arduino/32-lettura-inverte-power-one-aurora.ht
 #define RS485_SERIAL_BAUD_RATE      19200
 
 #define DHT_PIN                     12
+#define DHT11                       11
+#define DHT22                       22
+#define DHT_TYPE                    DHT22
 
 #define DATA_SAMPLER_INTERVAL             15000
 #define HEART_BEAT_INTERVAL               500
@@ -130,8 +129,10 @@ private:
       delay(50);
 #ifdef DBG_PV_INVERTER_COMMUNICATION
 	  Serial.println("[PV] Sending message ...");
-	  for(int j = 0; j < 9; j++)
-		Serial.println("[PV] TX message [" + String(j) + "] = " + String(SendData[j]));
+	  for(int j = 0; j < 9; j++){
+		  Serial.print("[PV] TX message [" + String(j) + "] = " + String(SendData[j]) + " = 0x");
+      Serial.println(String(SendData[j], HEX));
+    }
 #endif
       if (Serial1.write(SendData, sizeof(SendData)) != 0) {
         Serial1.flush();
@@ -143,8 +144,10 @@ private:
         if (received_bytes_num != 0) {
 #ifdef DBG_PV_INVERTER_COMMUNICATION
           Serial.println("[PV] RX message length = " + String(received_bytes_num));
-          for(int j = 0; j < 8; j++)
-            Serial.println("[PV] RX message [" + String(j) + "] = " + String(ReceiveData[j]));
+          for(int j = 0; j < 8; j++){
+            Serial.print("[PV] RX message [" + String(j) + "] = " + String(ReceiveData[j]) + " = 0x");
+            Serial.println(String(ReceiveData[j], HEX));
+          }
 #endif
           if ((int)word(ReceiveData[7], ReceiveData[6]) == Crc16(ReceiveData, 0, 6)) {
 #ifdef DBG_PV_INVERTER_COMMUNICATION
@@ -1520,7 +1523,11 @@ void th_data_sampler_callback(void){
   wdt_rearm();
 
   // Get temperature and humidity
+#if (DHT_TYPE == DHT11)
   err_code = DHT.read11(DHT_PIN);
+#elif (DHT_TYPE == DHT22)
+  err_code = DHT.read22(DHT_PIN);
+#endif
   switch (err_code)
   {
     case DHTLIB_OK:  
@@ -1544,6 +1551,7 @@ void th_data_sampler_callback(void){
 
   wdt_rearm();
 
+#ifndef DISABLE_DATA_SAMPLER_PV_INVERTER
   // Get data from PV inverter
   if (!PV_inverter.ReadCumulatedEnergy(5)){
     Serial.println("[PV] Couldn't read inverter's total cumulated energy");
@@ -1556,13 +1564,17 @@ void th_data_sampler_callback(void){
     goto function_exit_fail;
   }
   Serial.println("[PV] Grid power = " + String(PV_inverter.DSP.Value) + " W");
+#endif // #ifndef DISABLE_DATA_SAMPLER_PV_INVERTER
 
   // We got all the data; upload all this stuff to the cloud
   upload_temp_hum(DHT.temperature, DHT.humidity);
+
+#ifndef DISABLE_DATA_SAMPLER_PV_INVERTER
   upload_PV_inverter_data(
     PV_inverter.DSP.Value,
     PV_inverter.CumulatedEnergy.Energy/1000
     );
+#endif
 
   return;
 
@@ -1588,6 +1600,10 @@ void setup() {
   Serial.println("PV logger - " + String(SW_VERSION) + "\r\n");
   
   pinMode(LED_BUILTIN, OUTPUT);
+
+  Serial.print("[DHT] DHTLib version = ");
+  Serial.println(DHT_LIB_VERSION);
+  Serial.println("[DHT] Sensor version = DHT" + String(DHT_TYPE));
 
   // Initialization of RS485 interface is perfomed by constructor of cls_PV_inverter
 #ifndef DISABLE_PV_INVERTER_PROBING
@@ -1651,7 +1667,6 @@ void setup() {
   }
       
 #endif
-
 
   // Initialize threads
 #ifndef DISABLE_HEARTBEAT
